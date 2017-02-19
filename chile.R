@@ -34,6 +34,7 @@ dff<-read.csv("chile.csv")
 
 # preparing CV-3 data split
 k<-3
+dff<-na.omit(dff)
 # first we split the data frame by  the "vote" factor
 df_lst<-split(dff,dff$vote)
 
@@ -42,9 +43,23 @@ dfi_folds<-list()
 for (i in 1:length(levels(dff$vote))){
   dfi_folds[[i]] <- cut(seq(1,nrow(df_lst[[i]])),breaks=k,labels=FALSE)
 }
-# then, we recombine all "vote" thirds into three heterogenous "vote" data frames 
+# then, we recombine all "vote" thirds into three, heterogenous "vote", data frames 
 data_cv3<-list()
 for (i in 1:k){
   t<-data.frame(rbind(df_lst[[1]][which(dfi_folds[[1]]==i),],df_lst[[2]][which(dfi_folds[[2]]==i),],df_lst[[3]][which(dfi_folds[[3]]==i),],df_lst[[4]][which(dfi_folds[[4]]==i),]))
+  levels(t$region)<-levels(dff$region)
   data_cv3[[i]]<-t
+  }
+
+
+# multinomial logistic regression
+lrn_logR<-makeLearner("classif.multinom",predict.type = "prob")
+train<-list()
+predict<-list()
+for (j in 1:k){
+  task_orig<-makeClassifTask(data = data_cv3[[j]], target = "vote")
+  train[[j]]<-train(lrn_logR,task_orig)
+  t<-data.frame(ifelse(j>2,data_cv3[1],data_cv3[j+1]))
+  predict[[j]]<-predict(train[[j]],newdata =t )
+  
 }
