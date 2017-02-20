@@ -5,8 +5,6 @@ require(nnet)
 require(mlr)
 require(gridExtra)
 require(ggplot2)
-require(ROCR)
-require(DMwR)
 dff<-read.csv("chile.csv")
 
 # old_par<-par()
@@ -31,22 +29,68 @@ dff<-read.csv("chile.csv")
 # 
 # marrangeGrob(plots,ncol=2,nrow=4)
 
+# replace NA values with estimated distributions
+dff[which(is.na(dff$age)),"age"]<-36
+inc<-fitdistr(dff[!is.na(dff$income),"income"],"normal")
+inc_na<-rnorm(nrow(dff[is.na(dff$income),]),inc$estimate,inc$sd)
+inc_ind<-as.numeric(row.names(dff[is.na(dff$income),]))
+
+for (i in 1:nrow(dff[is.na(dff$income),])){
+  dff[inc_ind[i],"income"]<-inc_na[i]
+}
+
+stts<-fitdistr(dff[!is.na(dff$statusquo),"statusquo"],"normal")
+stts_na<-rnorm(nrow(dff[is.na(dff$statusquo),]),stts$estimate,stts$sd)
+stts_ind<-as.numeric(row.names(dff[is.na(dff$statusquo),]))
+
+for (i in 1:nrow(dff[is.na(dff$statusquo),])){
+  dff[stts_ind[i],"statusquo"]<-stts_na[i]
+}
+
+ind<-as.numeric(row.names(dff[is.na(dff$education),]))
+for (i in 1:nrow((dff[is.na(dff$education),]))){
+  if(i<2){
+    dff[ind[i],"education"]<-"PS"
+  }
+  else if(i<5){
+    dff[ind[i],"education"]<-"S"
+  }
+  else{
+    dff[ind[i],"education"]<-"P"
+  }
+}
+
+ind<-as.numeric(row.names(dff[is.na(dff$vote),]))
+for (i in 1:nrow((dff[is.na(dff$vote),]))){
+  if(i<12){
+    dff[ind[i],"vote"]<-"A"
+  }
+  else if(i<51){
+    dff[ind[i],"vote"]<-"U"
+  }
+  else if(i<109){
+    dff[ind[i],"vote"]<-"Y"
+  }
+  else {
+    dff[ind[i],"vote"]<-"N"
+  }
+}
+
 
 # preparing CV-3 data split
 k<-3
-dff<-na.omit(dff)
-# first we split the data frame by  the "vote" factor
-df_lst<-split(dff,dff$vote)
-
-# then, we split each homogenous "vote" data frame into three 
+# first we split the data frame by  the "region" factor
+#df_lst<-split(dff,dff$vote)
+df_lst<-split(dff,dff$region)
+# then, we split each homogenous "region" data frame into three 
 dfi_folds<-list()
-for (i in 1:length(levels(dff$vote))){
+for (i in 1:k){
   dfi_folds[[i]] <- cut(seq(1,nrow(df_lst[[i]])),breaks=k,labels=FALSE)
 }
 # then, we recombine all "vote" thirds into three, heterogenous "vote", data frames 
 data_cv3<-list()
 for (i in 1:k){
-  t<-data.frame(rbind(df_lst[[1]][which(dfi_folds[[1]]==i),],df_lst[[2]][which(dfi_folds[[2]]==i),],df_lst[[3]][which(dfi_folds[[3]]==i),],df_lst[[4]][which(dfi_folds[[4]]==i),]))
+  t<-data.frame(rbind(df_lst[[1]][which(dfi_folds[[1]]==i),],df_lst[[2]][which(dfi_folds[[2]]==i),],df_lst[[3]][which(dfi_folds[[3]]==i),]))
   levels(t$region)<-levels(dff$region)
   data_cv3[[i]]<-t
   }
@@ -56,10 +100,16 @@ for (i in 1:k){
 lrn_logR<-makeLearner("classif.multinom",predict.type = "prob")
 train<-list()
 predict<-list()
-for (j in 1:k){
+for (j in k:1){
   task_orig<-makeClassifTask(data = data_cv3[[j]], target = "vote")
   train[[j]]<-train(lrn_logR,task_orig)
+  assign(paste("train_",j,sep=""),train[[j]])
   t<-data.frame(ifelse(j>2,data_cv3[1],data_cv3[j+1]))
-  predict[[j]]<-predict(train[[j]],newdata =t )
+  assign(paste("predict_",j,sep=""),predict(train[[j]],newdata =t ))
   
 }
+
+mlr::performance(predict_1)
+mlr::performance(predict_2,measures=list(multiclass.au1p,mmce))
+getConfMatrix(predict_1)
+
