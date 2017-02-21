@@ -2,9 +2,13 @@ require(MASS)
 require(tmvtnorm)
 require(randomForest)
 require(nnet)
+require(Fselector)
 require(mlr)
 require(gridExtra)
 require(ggplot2)
+require(afex)
+require(car)
+
 dff<-read.csv("chile.csv")
 
 # old_par<-par()
@@ -75,32 +79,30 @@ for (i in 1:nrow((dff[is.na(dff$vote),]))){
     dff[ind[i],"vote"]<-"N"
   }
 }
-
-
-# preparing CV-3 data split
-k<-3
-# first we split the data frame by  the "region" factor
-#df_lst<-split(dff,dff$vote)
-df_lst<-split(dff,dff$region)
-# then, we split each homogenous "region" data frame into three 
-dfi_folds<-list()
-for (i in 1:k){
-  dfi_folds[[i]] <- cut(seq(1,nrow(df_lst[[i]])),breaks=k,labels=FALSE)
-}
-# then, we recombine all "vote" thirds into three, heterogenous "vote", data frames 
-data_cv3<-list()
-for (i in 1:k){
-  t<-data.frame(rbind(df_lst[[1]][which(dfi_folds[[1]]==i),],df_lst[[2]][which(dfi_folds[[2]]==i),],df_lst[[3]][which(dfi_folds[[3]]==i),]))
-  levels(t$region)<-levels(dff$region)
-  data_cv3[[i]]<-t
-  }
-
+##############################################################################
 
 # multinomial logistic regression
 lrn_logR<-makeLearner("classif.multinom",predict.type = "prob")
 
 task1<-makeClassifTask(data = dff, target = "vote")
+# specify 3 subsample iterations, each with 2/3 of data( default), and stratify "region" variable
 rdesc = makeResampleDesc("Subsample", iters = 3, stratify.cols = c("region"))
-rr = resample(lrn_logR, task1, rdesc)
+
+rr = resample(lrn_logR, task1, rdesc, measures = list(mmce,multiclass.aunp),models = TRUE)
 getConfMatrix(rr$pred)
 
+n = getTaskSize(task1)
+## Use 2/3 of the observations for training
+train.set = sample(n, size = 2*n/3)
+test.set<-as.numeric(row.names(dff))[-train.set]
+
+## Train the learner
+mod<-train(lrn_logR, task1, subset = train.set)
+## predict test results & performance measures
+prd<-predict(mod,task1,subset =test.set)
+perf<-mlr::performance(prd, measures = list(mmce,multiclass.aunp))
+
+## calculate model z score
+afex::set_sum_contrasts() # use sum coding, necessary to make type III LR tests valid
+
+Anova(mod$learner.model,type="III")
