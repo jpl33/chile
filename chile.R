@@ -98,18 +98,9 @@ for (i in 1:k){
 
 # multinomial logistic regression
 lrn_logR<-makeLearner("classif.multinom",predict.type = "prob")
-train<-list()
-predict<-list()
-for (j in k:1){
-  task_orig<-makeClassifTask(data = data_cv3[[j]], target = "vote")
-  train[[j]]<-train(lrn_logR,task_orig)
-  assign(paste("train_",j,sep=""),train[[j]])
-  t<-data.frame(ifelse(j>2,data_cv3[1],data_cv3[j+1]))
-  assign(paste("predict_",j,sep=""),predict(train[[j]],newdata =t ))
-  
-}
 
-mlr::performance(predict_1)
-mlr::performance(predict_2,measures=list(multiclass.au1p,mmce))
-getConfMatrix(predict_1)
+task1<-makeClassifTask(data = dff, target = "vote")
+rdesc = makeResampleDesc("Subsample", iters = 3, stratify.cols = c("region"))
+rr = resample(lrn_logR, task1, rdesc)
+getConfMatrix(rr$pred)
 
