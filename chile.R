@@ -30,7 +30,9 @@ dff<-read.csv("clean_chile.csv")
 # for (i in 1:(ncol(dff)-1)){
 #   plots[[i]]<-qplot(data = data.frame(x = dff[,i] ,y=dff[,"vote"]),x,xlab=colnames(dff)[i])+geom_bar(aes(fill = dff$vote))
 # }
-# 
+
+# pplt<-ggplot(data= dff, aes(x=dff$population))+geom_histogram()+facet_grid(vote ~ ., as.table = FALSE)
+
 # marrangeGrob(plots,ncol=2,nrow=4)
 
 # replace NA values with estimated distributions
@@ -93,7 +95,7 @@ task1<-normalizeFeatures(task1, method = "standardize")
 # specify 3 subsample iterations, each with 2/3 of data( default), and stratify "region" variable
 rdesc = makeResampleDesc("Subsample", iters = 3, stratify.cols = c("region"))
 
-rr = resample(lrn_logR, task1, rdesc, measures = list(mmce,multiclass.aunp),models = TRUE)
+rr = resample(lrn_logR, task1, rdesc, , extract = function(x) x$learner.model$Coefficients, measures = list(mmce,multiclass.aunp),models = TRUE)
 
 n = getTaskSize(task1)
 ## Use 2/3 of the observations for training
@@ -106,6 +108,10 @@ mod<-train(lrn_logR, task1, subset = train.set)
 prd<-predict(mod,task1,subset =test.set)
 perf<-mlr::performance(prd, measures = list(mmce,multiclass.aunp))
 
+thresh<-c(A=198/2700, N=949/2700, U=627/2700, Y=926/2700)
+prdt<-setThreshold(prd,threshold = thresh)
+perft<-mlr::performance(prdt, measures = list(mmce,multiclass.aunp))
+perft
 ## calculate model z score
 afex::set_sum_contrasts() # use sum coding, necessary to make type III LR tests valid
 
