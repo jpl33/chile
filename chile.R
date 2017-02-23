@@ -9,7 +9,7 @@ require(ggplot2)
 require(afex)
 require(car)
 
-dff<-read.csv("chile.csv")
+dff<-read.csv("clean_chile.csv")
 
 # old_par<-par()
 # par(mfrow=c(3,3))
@@ -34,62 +34,66 @@ dff<-read.csv("chile.csv")
 # marrangeGrob(plots,ncol=2,nrow=4)
 
 # replace NA values with estimated distributions
-dff[which(is.na(dff$age)),"age"]<-36
-inc<-fitdistr(dff[!is.na(dff$income),"income"],"normal")
-inc_na<-rnorm(nrow(dff[is.na(dff$income),]),inc$estimate,inc$sd)
-inc_ind<-as.numeric(row.names(dff[is.na(dff$income),]))
-
-for (i in 1:nrow(dff[is.na(dff$income),])){
-  dff[inc_ind[i],"income"]<-inc_na[i]
-}
-
-stts<-fitdistr(dff[!is.na(dff$statusquo),"statusquo"],"normal")
-stts_na<-rnorm(nrow(dff[is.na(dff$statusquo),]),stts$estimate,stts$sd)
-stts_ind<-as.numeric(row.names(dff[is.na(dff$statusquo),]))
-
-for (i in 1:nrow(dff[is.na(dff$statusquo),])){
-  dff[stts_ind[i],"statusquo"]<-stts_na[i]
-}
-
-ind<-as.numeric(row.names(dff[is.na(dff$education),]))
-for (i in 1:nrow((dff[is.na(dff$education),]))){
-  if(i<2){
-    dff[ind[i],"education"]<-"PS"
-  }
-  else if(i<5){
-    dff[ind[i],"education"]<-"S"
-  }
-  else{
-    dff[ind[i],"education"]<-"P"
-  }
-}
-
-ind<-as.numeric(row.names(dff[is.na(dff$vote),]))
-for (i in 1:nrow((dff[is.na(dff$vote),]))){
-  if(i<12){
-    dff[ind[i],"vote"]<-"A"
-  }
-  else if(i<51){
-    dff[ind[i],"vote"]<-"U"
-  }
-  else if(i<109){
-    dff[ind[i],"vote"]<-"Y"
-  }
-  else {
-    dff[ind[i],"vote"]<-"N"
-  }
-}
+# dff[which(is.na(dff$age)),"age"]<-36
+# 
+# # fit distribution to existing variable values
+# inc<-fitdistr(dff[!is.na(dff$income),"income"],"normal")
+# # draw values from fitted distribution fo NA values
+# inc_na<-rnorm(nrow(dff[is.na(dff$income),]),inc$estimate,inc$sd)
+# # what are the indexes of the NA values?
+# inc_ind<-as.numeric(row.names(dff[is.na(dff$income),]))
+# 
+# for (i in 1:nrow(dff[is.na(dff$income),])){
+#   dff[inc_ind[i],"income"]<-inc_na[i]
+# }
+# 
+# stts<-fitdistr(dff[!is.na(dff$statusquo),"statusquo"],"normal")
+# stts_na<-rnorm(nrow(dff[is.na(dff$statusquo),]),stts$estimate,stts$sd)
+# stts_ind<-as.numeric(row.names(dff[is.na(dff$statusquo),]))
+# 
+# for (i in 1:nrow(dff[is.na(dff$statusquo),])){
+#   dff[stts_ind[i],"statusquo"]<-stts_na[i]
+# }
+# 
+# ind<-as.numeric(row.names(dff[is.na(dff$education),]))
+# for (i in 1:nrow((dff[is.na(dff$education),]))){
+#   if(i<2){
+#     dff[ind[i],"education"]<-"PS"
+#   }
+#   else if(i<5){
+#     dff[ind[i],"education"]<-"S"
+#   }
+#   else{
+#     dff[ind[i],"education"]<-"P"
+#   }
+# }
+# 
+# ind<-as.numeric(row.names(dff[is.na(dff$vote),]))
+# for (i in 1:nrow((dff[is.na(dff$vote),]))){
+#   if(i<12){
+#     dff[ind[i],"vote"]<-"A"
+#   }
+#   else if(i<51){
+#     dff[ind[i],"vote"]<-"U"
+#   }
+#   else if(i<109){
+#     dff[ind[i],"vote"]<-"Y"
+#   }
+#   else {
+#     dff[ind[i],"vote"]<-"N"
+#   }
+# }
 ##############################################################################
 
 # multinomial logistic regression
 lrn_logR<-makeLearner("classif.multinom",predict.type = "prob")
 
 task1<-makeClassifTask(data = dff, target = "vote")
+task1<-normalizeFeatures(task1, method = "standardize")
 # specify 3 subsample iterations, each with 2/3 of data( default), and stratify "region" variable
 rdesc = makeResampleDesc("Subsample", iters = 3, stratify.cols = c("region"))
 
 rr = resample(lrn_logR, task1, rdesc, measures = list(mmce,multiclass.aunp),models = TRUE)
-getConfMatrix(rr$pred)
 
 n = getTaskSize(task1)
 ## Use 2/3 of the observations for training
